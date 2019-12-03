@@ -38,15 +38,17 @@ module top_fpga(
 `ifdef BADGE_V3
 		output [10:0] ledc,
 		output [2:0] leda,
-		inout [29:0] genio,
+		inout [27:0] genio,
 `elsif BADGE_PROD
 		output [9:0] ledc,
 		output [2:0] leda,
-		inout [29:0] genio,
+		inout [27:0] genio,
 `else
 		output [8:0] led,
-		inout [27:0] genio,
+		inout [25:0] genio,
 `endif
+		inout i2c_scl,
+		inout i2c_sda,
 		output uart_tx,
 		input uart_rx,
 `ifdef BADGE_V3
@@ -133,9 +135,9 @@ module top_fpga(
 	wire flash_sclk;
 	wire flash_cs;
 	wire flash_selected;
-	wire [29:0] genio_in;
-	wire [29:0] genio_out;
-	wire [29:0] genio_oe;
+	wire [27:0] genio_in;
+	wire [27:0] genio_out;
+	wire [27:0] genio_oe;
 	wire [5:0] sao1_in;
 	wire [5:0] sao1_out;
 	wire [5:0] sao1_oe;
@@ -145,6 +147,13 @@ module top_fpga(
 	wire [7:0] pmod_in;
 	wire [7:0] pmod_out;
 	wire [7:0] pmod_oe;
+
+	wire i2c_scl_in;
+	wire i2c_scl_out;
+	wire i2c_scl_oen;
+	wire i2c_sda_in;
+	wire i2c_sda_out;
+	wire i2c_sda_oen;
 
 	wire clkint;
 
@@ -244,7 +253,14 @@ module top_fpga(
 		.sao2_oe(sao2_oe),
 		.pmod_in(pmod_in),
 		.pmod_out(pmod_out),
-		.pmod_oe(pmod_oe)
+		.pmod_oe(pmod_oe),
+
+		.i2c_scl_in(i2c_scl_in),
+		.i2c_scl_out(i2c_scl_out),
+		.i2c_scl_oen(i2c_scl_oen),
+		.i2c_sda_in(i2c_sda_in),
+		.i2c_sda_out(i2c_sda_out),
+		.i2c_sda_oen(i2c_sda_oen),
 	);
 
 	sysmgr sysmgr_I (
@@ -278,16 +294,19 @@ module top_fpga(
 	TRELLIS_IO #(.DIR("BIDIR")) flash_tristate_hold (.I(flash_sout[3]),.T(flash_bus_qpi && !flash_oe),.B(flash_hold),.O(flash_sin[3]));
 
 `ifdef BADGE_V3
-	for (i=0; i<30; i++) begin
-`elsif BADGE_PROD
-	for (i=0; i<30; i++) begin
-`else
-	assign genio_in[29] = 0;
-	assign genio_in[28] = 0;
 	for (i=0; i<28; i++) begin
+`elsif BADGE_PROD
+	for (i=0; i<28; i++) begin
+`else
+	assign genio_in[27] = 0;
+	assign genio_in[26] = 0;
+	for (i=0; i<26; i++) begin
 `endif
 		TRELLIS_IO #(.DIR("BIDIR")) genio_tristate[i] (.B(genio[i]), .I(genio_out[i]), .O(genio_in[i]), .T(!genio_oe[i]));
 	end
+
+	TRELLIS_IO #(.DIR("BIDIR")) i2c_scl_tristate (.B(i2c_scl), .I(i2c_scl_out), .O(i2c_scl_in), .T(!i2c_scl_oen));
+	TRELLIS_IO #(.DIR("BIDIR")) i2c_sda_tristate (.B(i2c_sda), .I(i2c_sda_out), .O(i2c_sda_in), .T(!i2c_sda_oen));
 
 
 	for (i=0; i<6; i++) begin

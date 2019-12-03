@@ -153,6 +153,14 @@ SRC_SYNTH += $(addprefix hdmi/, \
 	vga.v \
 )
 
+	# I2C
+SRC += $(addprefix i2c/, \
+	i2c_master_bit_ctrl.v \
+	i2c_master_byte_ctrl.v \
+	i2c_master_defines.v \
+	i2c_master_top.v \
+)
+
 EXTRA_DEPEND=rom_random_seeds0x123456.hex
 BRAMFILE=rom.hex
 CONSTR=$(word $(BADGE_VER), had19_proto1.lpf had19_proto2.lpf had19_proto3.lpf had19_prod.lpf)

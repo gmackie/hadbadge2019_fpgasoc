@@ -43,6 +43,12 @@ module soc(
 		output irda_tx,
 		input irda_rx,
 		output reg irda_sd,
+		input i2c_scl_in,
+		output i2c_scl_out,
+		output i2c_scl_oen,
+		input i2c_sda_in,
+		output i2c_sda_out,
+		output i2c_sda_oen,
 		output pwmout,
 		output [17:0] lcd_db,
 		output lcd_rd,
@@ -95,9 +101,9 @@ module soc(
 		output adcrefout,
 		input adc4,
 
-		input [29:0] genio_in,
-		output reg [29:0] genio_out,
-		output reg [29:0] genio_oe,
+		input [27:0] genio_in,
+		output reg [27:0] genio_out,
+		output reg [27:0] genio_oe,
 		input [5:0] sao1_in,
 		output reg [5:0] sao1_out,
 		output reg [5:0] sao1_oe,
@@ -339,6 +345,32 @@ module soc(
 	reg  irda_select;
 	wire irda_ready;
 
+	// I2C
+	wire irq_i2c;
+	wire i2c_ready;
+	reg i2c_select;
+	wire [7:0] i2c_data_o;
+	reg [7:0] i2c_data_i;
+	i2c_master_top i2c_master_top(
+		.wb_clk_i(clk48m),
+		.wb_rst_i(0),
+		.arst_i(rst),
+		.wb_adr_i(mem_addr[2:0]),
+		.wb_dat_i(mem_wdata),
+		.wb_dat_o(i2c_data_o),
+		.wb_we_i(mem_wstrb != 0),
+		.wb_stb_i(i2c_select),
+		.wb_cyc_i(i2c_select),
+		.wb_ack_o(i2c_ready),
+		.wb_inta_o(irq_i2c),
+		.scl_pad_i(i2c_scl_in),
+		.scl_pad_o(i2c_scl_out),
+		.scl_padoen_o(i2c_scl_oen),
+		.sda_pad_i(i2c_sda_in),
+		.sda_pad_o(i2c_sda_out),
+		.sda_padoen_o(i2c_sda_oen)
+	);
+
 	reg misc_select;
 	wire[31:0] ram_rdata;
 	reg ram_ready;
@@ -412,6 +444,7 @@ module soc(
 
 	always @(*) begin
 		mem_select = 0;
+		i2c_select = 0;
 		uart_select = 0;
 		irda_select = 0;
 		misc_select = 0;
@@ -433,7 +466,11 @@ module soc(
 			end
 		end else if (mem_addr[31:28]=='h2) begin
 			misc_select = mem_valid;
-			if (mem_addr[6:2]==MISC_REG_LED) begin
+			// addres x2F_____ is used for I2C
+			if (mem_addr[27:24]=='hF) begin
+				i2c_select = mem_valid;
+				mem_rdata = { 24'h0, i2c_data_o};
+			end else if (mem_addr[6:2]==MISC_REG_LED) begin
 				mem_rdata = { 16'h0, pic_led };
 			end else if (mem_addr[6:2]==MISC_REG_BTN) begin
 				mem_rdata = { 24'h0, ~btn};
@@ -460,11 +497,11 @@ module soc(
 			end else if (mem_addr[6:2]==MISC_REG_ADC_VAL) begin
 				mem_rdata = adc_value;
 			end else if (mem_addr[6:2]==MISC_REG_GENIO_IN) begin
-				mem_rdata = {2'h0, genio_in};
+				mem_rdata = {4'h0, genio_in};
 			end else if (mem_addr[6:2]==MISC_REG_GENIO_OUT) begin
-				mem_rdata = {2'h0, genio_out};
+				mem_rdata = {4'h0, genio_out};
 			end else if (mem_addr[6:2]==MISC_REG_GENIO_OE) begin
-				mem_rdata = {2'h0, genio_oe};
+				mem_rdata = {4'h0, genio_oe};
 			end else if (mem_addr[6:2]==MISC_REG_GPEXT_IN) begin
 				mem_rdata = {usb_vdet, 7'h0, pmod_in, 2'h0, sao2_in, 2'h0, sao1_in};
 			end else if (mem_addr[6:2]==MISC_REG_GPEXT_OUT) begin
@@ -511,7 +548,7 @@ module soc(
 	end
 `endif
 
-	assign mem_ready = ram_ready || uart_ready || irda_ready || misc_select ||
+	assign mem_ready = ram_ready || uart_ready || irda_ready || misc_select || i2c_ready ||
 			lcd_ready || linerenderer_ready || usb_ready || pic_ready || audio_ready || psram_ready ||| bus_error;
 
 	dsadc dsadc (
@@ -654,7 +691,7 @@ module soc(
 	wire [15:0] pic_led_out;
 	assign led = {pic_led_out[10:8], pic_led_out[5:0]};
 
-//	assign led = {1'b0, pic_led[7:0]}; //Wondering why that LED doesn't work?
+	//assign led = {1'b0, pic_led[7:0]}; //Wondering why that LED doesn't work?
 
 	pic_wrapper #(
 		.ROM_HEX("pic/rom_initial.hex")
@@ -935,6 +972,7 @@ module soc(
 	//misc reg write ops, registered
 	always @(posedge clk48m) begin
 		if (rst) begin
+			i2c_data_i <= 0;
 			pic_led <= 0;
 			cpu_resetn <= 1;
 			flash_claim <= 0;
@@ -953,7 +991,9 @@ module soc(
 			fsel_strobe <= 0;
 			flash_dma_run <= 0;
 			if (misc_select && mem_wstrb[0]) begin
-				if (mem_addr[6:2]==MISC_REG_LED) begin
+				if (mem_addr[31:24]=='h2F) begin
+					i2c_data_i <= mem_wdata[7:0];
+				end else if (mem_addr[6:2]==MISC_REG_LED) begin
 					pic_led <= mem_wdata[16:0];
 				end else if (mem_addr[6:2]==MISC_REG_SOC_VER) begin
 					trace_en <= mem_wdata[0];
@@ -1043,6 +1083,7 @@ IRQs used:
 4 - USB irq
 5 - GFX copper irq
 6 - Audio irq
+7 - I2C irq
 */
 
 	//Interrupt logic
@@ -1059,6 +1100,9 @@ IRQs used:
 		end
 		if (irq_audio) begin
 			irq[6] = 1;
+		end
+		if (irq_i2c) begin
+			irq[7] = 1;
 		end
 	end
 
