@@ -46,7 +46,7 @@
 /** Start of memory range for the 'misc' peripheral, containing all sorts of
     non-specific SoC functionality */
 #define MISC_OFFSET 0x20000000
-/** Memory offset for I2C registers. Registers are byte aligned **/
+/** Memory offset for I2C registers. Registers are dword aligned **/
 #define MISC_I2C_OFFSET 0x2F000000
 /** LED offset. The lower bits here map directly to a LED. Write to set the LED
     values. Reading reads the last written value.*/
