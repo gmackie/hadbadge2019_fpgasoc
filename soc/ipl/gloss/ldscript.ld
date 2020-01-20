@@ -68,6 +68,7 @@ PROVIDE ( rom_cart_boot_flag = 0x400000a4 );
 
 PROVIDE ( UART =        0x10000000 );
 PROVIDE ( MISC =        0x20000000 );
+PROVIDE ( I2C  =        0x2F000000 );
 PROVIDE ( LCD =         0x30000000 );
 PROVIDE ( GFXREG =      0x50000000 );
 PROVIDE ( GFXPAL =      0x50002000 );
