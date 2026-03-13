@@ -108,7 +108,15 @@ module soc(
 		output reg [7:0] pmod_out,
 		output reg [7:0] pmod_oe,
 		
-		output reg trace_en
+		output reg trace_en,
+
+		// I2C interface
+		output i2c_scl_o,
+		output i2c_scl_oe,
+		input  i2c_scl_i,
+		output i2c_sda_o,
+		output i2c_sda_oe,
+		input  i2c_sda_i
 	);
 
 
@@ -361,6 +369,9 @@ module soc(
 	wire [31:0] audio_rdata;
 	reg audio_select;
 	wire audio_ready;
+	wire [31:0] i2c_rdata;
+	reg i2c_select;
+	wire i2c_ready;
 
 	wire [31:0] soc_version;
 `ifdef verilator
@@ -420,6 +431,7 @@ module soc(
 		pic_select = 0;
 		audio_select = 0;
 		psram_select = 0;
+		i2c_select = 0;
 		linerenderer_select=0;
 		bus_error = 0;
 		mem_rdata = 'hx;
@@ -496,6 +508,9 @@ module soc(
 		end else if (mem_addr[31:28]=='h9) begin
 			psram_select = mem_valid;
 			mem_rdata = psram_rdata;
+		end else if (mem_addr[31:28]=='hA) begin
+			i2c_select = mem_valid;
+			mem_rdata = i2c_rdata;
 		end else begin
 			//Bus error. Raise IRQ if memory is accessed.
 			mem_rdata = 'hDEADBEEF;
@@ -512,7 +527,7 @@ module soc(
 `endif
 
 	assign mem_ready = ram_ready || uart_ready || irda_ready || misc_select ||
-			lcd_ready || linerenderer_ready || usb_ready || pic_ready || audio_ready || psram_ready ||| bus_error;
+			lcd_ready || linerenderer_ready || usb_ready || pic_ready || audio_ready || psram_ready || i2c_ready || bus_error;
 
 	dsadc dsadc (
 		.clk(clk48m),
@@ -704,6 +719,26 @@ module soc(
 		.rst(rst)
 	);
 
+
+	wire irq_i2c;
+
+	i2c_wb i2c_I (
+		.scl_o(i2c_scl_o),
+		.scl_oe(i2c_scl_oe),
+		.scl_i(i2c_scl_i),
+		.sda_o(i2c_sda_o),
+		.sda_oe(i2c_sda_oe),
+		.sda_i(i2c_sda_i),
+		.bus_addr(mem_addr[3:2]),
+		.bus_wdata(mem_wdata),
+		.bus_rdata(i2c_rdata),
+		.bus_cyc(i2c_select),
+		.bus_ack(i2c_ready),
+		.bus_we(mem_wstrb != 0),
+		.irq(irq_i2c),
+		.clk(clk48m),
+		.rst(rst)
+	);
 
 	wire qpi_do_read;
 	wire qpi_do_write;
@@ -1043,6 +1078,7 @@ IRQs used:
 4 - USB irq
 5 - GFX copper irq
 6 - Audio irq
+7 - I2C done irq
 */
 
 	//Interrupt logic
@@ -1059,6 +1095,9 @@ IRQs used:
 		end
 		if (irq_audio) begin
 			irq[6] = 1;
+		end
+		if (irq_i2c) begin
+			irq[7] = 1;
 		end
 	end
 

@@ -573,6 +573,56 @@ but this should get you started.
 #define AUDIO_DRUMS         0xD0
 #define AUDIO_CONFIG_VOLUME 0xF0
 
+/* -------------- I2C peripheral defines --------------------- */
+
+/** Start of memory range for the I2C master peripheral.
+    The I2C master supports standard mode (100kHz) and fast mode (400kHz).
+    It uses open-drain signaling and supports clock stretching.
+
+    Typical usage sequence:
+    1. Set clock divider (optional, defaults to 100kHz)
+    2. Write slave address byte to DATA register
+    3. Write CMD_START | CMD_WRITE to CMD register, poll until DONE
+    4. Check ACK_RECEIVED in STATUS
+    5. Write data byte to DATA, write CMD_WRITE to CMD, poll until DONE
+    6. Write CMD_STOP to CMD register, poll until DONE
+
+    For reads:
+    1. START + WRITE slave address with read bit set
+    2. CMD_READ (with CMD_ACK for more bytes, CMD_NACK for last byte)
+    3. Read DATA register for received byte
+    4. STOP
+*/
+#define I2C_OFFSET 0xA0000000
+/** Command/Status register.
+    Write bits:
+      [0] START - Issue I2C START condition
+      [1] STOP  - Issue I2C STOP condition
+      [2] WRITE - Transmit the byte in the DATA register
+      [3] READ  - Receive a byte into the DATA register
+      [4] ACK_VAL - ACK value for reads: 0=ACK (continue), 1=NACK (last byte)
+    Read bits:
+      [0] BUSY - 1 when a transaction is in progress
+      [1] DONE - 1 when last operation completed (cleared on read)
+      [2] ACK_RECEIVED - ACK bit from slave after write (0=ACK, 1=NACK) */
+#define I2C_CMD_REG 0x00
+#define I2C_CMD_START (1<<0)
+#define I2C_CMD_STOP  (1<<1)
+#define I2C_CMD_WRITE (1<<2)
+#define I2C_CMD_READ  (1<<3)
+#define I2C_CMD_NACK  (1<<4)
+#define I2C_STATUS_BUSY (1<<0)
+#define I2C_STATUS_DONE (1<<1)
+#define I2C_STATUS_NACK (1<<2)
+/** Data register.
+    Write: [7:0] byte to transmit.
+    Read:  [7:0] last received byte. */
+#define I2C_DATA_REG 0x04
+/** Clock divider register. [15:0] divider value.
+    SCL frequency = 48MHz / (4 * (divider + 1)).
+    Default 119 = 100kHz. Set to 29 for 400kHz. */
+#define I2C_CLKDIV_REG 0x08
+
 /* -------------- PSRAM peripheral defines --------------------- */
 
 /** Offset of the manual control for PSRAM */

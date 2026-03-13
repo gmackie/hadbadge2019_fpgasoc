@@ -37,6 +37,9 @@ extern volatile uint32_t LCD;
 extern volatile uint32_t USB;
 #define USB_REG(i) USB[(i)/4]
 
+extern volatile uint32_t I2C[];
+#define I2C_REG(i) I2C[(i)/4]
+
 extern volatile uint32_t GFXREG[];
 #define GFX_REG(i) GFXREG[(i)/4]
 
