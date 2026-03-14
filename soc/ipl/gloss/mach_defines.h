@@ -623,6 +623,88 @@ but this should get you started.
     Default 119 = 100kHz. Set to 29 for 400kHz. */
 #define I2C_CLKDIV_REG 0x08
 
+/* -------------- CAN peripheral defines --------------------- */
+
+/** Start of memory range for the CAN 2.0B controller.
+    Supports standard (11-bit) and extended (29-bit) identifiers,
+    bit stuffing, and CRC-15.
+
+    Typical TX sequence:
+    1. Set prescaler and timing (optional, defaults to 100kbps)
+    2. Write TX_ID, TX_CTRL, TX_DATA0/1
+    3. Write CAN_CMD_TX_START to CMD register
+    4. Poll STATUS until TX_DONE or TX_ARBLOST
+    5. Check status flags
+
+    RX is automatic; poll RX_VALID or use IRQ 9.
+*/
+#define CAN_OFFSET 0xB0000000
+/** Command/Status register.
+    Write: [0]=TX_START - begin transmission of configured frame
+    Read:  [0]=BUSY, [1]=TX_DONE (cleared on read), [2]=TX_ARBLOST (cleared on read),
+           [3]=RX_VALID (cleared on read), [4]=RX_CRC_ERR (cleared on read),
+           [5]=BUS_OFF */
+#define CAN_CMD_REG 0x00
+#define CAN_CMD_TX_START (1<<0)
+#define CAN_STATUS_BUSY    (1<<0)
+#define CAN_STATUS_TX_DONE (1<<1)
+#define CAN_STATUS_ARBLOST (1<<2)
+#define CAN_STATUS_RX_VALID (1<<3)
+#define CAN_STATUS_RX_CRC_ERR (1<<4)
+#define CAN_STATUS_BUS_OFF (1<<5)
+/** TX Identifier register. [28:0]=CAN identifier (11 or 29 bits) */
+#define CAN_TX_ID_REG 0x04
+/** TX Control register. [3:0]=DLC (0-8), [4]=RTR, [5]=IDE (1=extended 29-bit) */
+#define CAN_TX_CTRL_REG 0x08
+#define CAN_CTRL_RTR (1<<4)
+#define CAN_CTRL_IDE (1<<5)
+/** TX Data registers. Bytes are big-endian: byte 0 in bits [31:24] */
+#define CAN_TX_DATA0_REG 0x0C
+#define CAN_TX_DATA1_REG 0x10
+/** RX Identifier register. [28:0]=Received CAN identifier */
+#define CAN_RX_ID_REG 0x14
+/** RX Control register. [3:0]=DLC, [4]=RTR, [5]=IDE */
+#define CAN_RX_CTRL_REG 0x18
+/** RX Data registers */
+#define CAN_RX_DATA0_REG 0x1C
+#define CAN_RX_DATA1_REG 0x20
+/** Baud rate prescaler. [15:0]=prescaler value.
+    Baud = 48MHz / (prescaler * (1 + TSEG1 + TSEG2)).
+    Default: prescaler=48, tseg1=5, tseg2=4 -> 100kbps */
+#define CAN_PRESCALER_REG 0x24
+/** Bit timing register. [3:0]=TSEG1 (propagation+phase1), [7:4]=TSEG2 (phase2) */
+#define CAN_TIMING_REG 0x28
+
+/* -------------- RS-485 peripheral defines --------------------- */
+
+/** Start of memory range for the RS-485 half-duplex UART.
+    This is essentially a UART with automatic RS-485 driver enable (DE)
+    control. The DE pin is asserted during transmission and deasserted
+    after a configurable turnaround delay. RX echo suppression is
+    built in (received data during TX is discarded).
+
+    Typical usage:
+    1. Set baud divisor in CTRL register
+    2. Optionally configure turnaround delay and DE polarity
+    3. Write data bytes to DATA register (auto-enables DE)
+    4. Read received data from DATA register (bit 31 = empty flag)
+*/
+#define RS485_OFFSET 0xC0000000
+/** Data register.
+    Write: [7:0]=TX byte. Blocks if TX FIFO is full.
+    Read:  [7:0]=RX byte, [31]=1 if RX FIFO empty (invalid data) */
+#define RS485_DATA_REG 0x00
+/** Control/Status register.
+    Write: [11:0]=Baud divisor. Baud rate = 48MHz/(DIV+2)
+    Read:  [11:0]=Divisor, [28]=TX FIFO full, [29]=TX FIFO empty,
+           [30]=RX overflow, [31]=RX FIFO empty */
+#define RS485_CTRL_REG 0x04
+/** Configuration register.
+    [7:0]=Turnaround delay in bit periods after TX (default 2)
+    [8]=DE polarity: 0=active high (default), 1=active low */
+#define RS485_CONFIG_REG 0x08
+#define RS485_CONFIG_DE_INVERT (1<<8)
+
 /* -------------- PSRAM peripheral defines --------------------- */
 
 /** Offset of the manual control for PSRAM */

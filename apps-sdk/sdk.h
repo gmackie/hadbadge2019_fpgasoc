@@ -40,6 +40,12 @@ extern volatile uint32_t USB;
 extern volatile uint32_t I2C[];
 #define I2C_REG(i) I2C[(i)/4]
 
+extern volatile uint32_t CAN[];
+#define CAN_REG(i) CAN[(i)/4]
+
+extern volatile uint32_t RS485[];
+#define RS485_REG(i) RS485[(i)/4]
+
 extern volatile uint32_t GFXREG[];
 #define GFX_REG(i) GFXREG[(i)/4]
 

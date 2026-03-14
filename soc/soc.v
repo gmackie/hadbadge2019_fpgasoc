@@ -116,7 +116,16 @@ module soc(
 		input  i2c_scl_i,
 		output i2c_sda_o,
 		output i2c_sda_oe,
-		input  i2c_sda_i
+		input  i2c_sda_i,
+
+		// CAN interface
+		output can_tx,
+		input  can_rx,
+
+		// RS-485 interface
+		output rs485_tx,
+		input  rs485_rx,
+		output rs485_de
 	);
 
 
@@ -372,6 +381,12 @@ module soc(
 	wire [31:0] i2c_rdata;
 	reg i2c_select;
 	wire i2c_ready;
+	wire [31:0] can_rdata;
+	reg can_select;
+	wire can_ready;
+	wire [31:0] rs485_rdata;
+	reg rs485_select;
+	wire rs485_ready;
 
 	wire [31:0] soc_version;
 `ifdef verilator
@@ -432,6 +447,8 @@ module soc(
 		audio_select = 0;
 		psram_select = 0;
 		i2c_select = 0;
+		can_select = 0;
+		rs485_select = 0;
 		linerenderer_select=0;
 		bus_error = 0;
 		mem_rdata = 'hx;
@@ -511,6 +528,12 @@ module soc(
 		end else if (mem_addr[31:28]=='hA) begin
 			i2c_select = mem_valid;
 			mem_rdata = i2c_rdata;
+		end else if (mem_addr[31:28]=='hB) begin
+			can_select = mem_valid;
+			mem_rdata = can_rdata;
+		end else if (mem_addr[31:28]=='hC) begin
+			rs485_select = mem_valid;
+			mem_rdata = rs485_rdata;
 		end else begin
 			//Bus error. Raise IRQ if memory is accessed.
 			mem_rdata = 'hDEADBEEF;
@@ -527,7 +550,8 @@ module soc(
 `endif
 
 	assign mem_ready = ram_ready || uart_ready || irda_ready || misc_select ||
-			lcd_ready || linerenderer_ready || usb_ready || pic_ready || audio_ready || psram_ready || i2c_ready || bus_error;
+			lcd_ready || linerenderer_ready || usb_ready || pic_ready || audio_ready || psram_ready ||
+			i2c_ready || can_ready || rs485_ready || bus_error;
 
 	dsadc dsadc (
 		.clk(clk48m),
@@ -736,6 +760,44 @@ module soc(
 		.bus_ack(i2c_ready),
 		.bus_we(mem_wstrb != 0),
 		.irq(irq_i2c),
+		.clk(clk48m),
+		.rst(rst)
+	);
+
+	wire irq_can_tx;
+	wire irq_can_rx;
+
+	can_wb can_I (
+		.can_tx(can_tx),
+		.can_rx(can_rx),
+		.bus_addr(mem_addr[5:2]),
+		.bus_wdata(mem_wdata),
+		.bus_rdata(can_rdata),
+		.bus_cyc(can_select),
+		.bus_ack(can_ready),
+		.bus_we(mem_wstrb != 0),
+		.irq_tx(irq_can_tx),
+		.irq_rx(irq_can_rx),
+		.clk(clk48m),
+		.rst(rst)
+	);
+
+	wire irq_rs485;
+
+	rs485_wb #(
+		.FIFO_DEPTH(16),
+		.DIV_WIDTH(12)
+	) rs485_I (
+		.rs485_tx(rs485_tx),
+		.rs485_rx(rs485_rx),
+		.rs485_de(rs485_de),
+		.bus_addr(mem_addr[3:2]),
+		.bus_wdata(mem_wdata),
+		.bus_rdata(rs485_rdata),
+		.bus_cyc(rs485_select),
+		.bus_ack(rs485_ready),
+		.bus_we(mem_wstrb != 0),
+		.irq(irq_rs485),
 		.clk(clk48m),
 		.rst(rst)
 	);
@@ -1079,6 +1141,9 @@ IRQs used:
 5 - GFX copper irq
 6 - Audio irq
 7 - I2C done irq
+8 - CAN TX done irq
+9 - CAN RX frame irq
+10 - RS-485 RX data irq
 */
 
 	//Interrupt logic
@@ -1098,6 +1163,15 @@ IRQs used:
 		end
 		if (irq_i2c) begin
 			irq[7] = 1;
+		end
+		if (irq_can_tx) begin
+			irq[8] = 1;
+		end
+		if (irq_can_rx) begin
+			irq[9] = 1;
+		end
+		if (irq_rs485) begin
+			irq[10] = 1;
 		end
 	end
 
